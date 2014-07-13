@@ -21,12 +21,12 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
-
 
 //////////////////////////////
 //        STRUCTURES        //
@@ -34,7 +34,7 @@
 
 typedef enum { false, true } bool;
 
-typedef struct AS_Server_s {
+typedef struct AS_Server_s {  // server side: running servers
   int port;
   int running;
   int stop;
@@ -45,33 +45,33 @@ typedef struct AS_Server_s {
   struct AS_Server_s *next;
 } AS_Server_t;
 
-typedef struct AS_ConnectedClients_s  {
+typedef struct AS_ConnectedClients_s  { // server side: connected clients
   int socket;
   struct sockaddr_storage sockaddr;
   
   struct AS_ConnectedClients_s *next;
 } AS_ConnectedClients_t;
 
-typedef struct AS_Client_s  {
+typedef struct AS_Connections_s  {  // client side: outgoing connections
   int conID;
   
-  struct AS_Clients_s *next;
-} AS_Clients_t;
+  struct AS_Connections_s *next;
+} AS_Connections_t;
 
-typedef struct AS_MessageHeader_s {
-  int client_source;
-  int client_destination;
-  unsigned int payload_len;
-  unsigned int payload_type;
-} AS_MessageHeader_s;
+typedef struct AS_MessageHeader_s { // header of each packet! afterwards -> payload
+  int clientSource;           // -1: server
+  int clientDestination;      // -1: server // -2: broadcast to all clients
+  unsigned int payloadType;   // AS_PAYLOAD_xxx
+  unsigned int payloadLength; // bytes
+} AS_MessageHeader_t;
 
 //////////////////////////////
 //        VARIABLES         //
 //////////////////////////////
 
-int AS_initialized = 0;     // Init
-AS_Server_t* AS_ServerList; // Global server list (linked list)
-
+int AS_initialized = 0;               // test if initialization is done
+AS_Server_t* AS_ServerList;           // server side: global server list (linked list)
+AS_Connections_t* AS_ConnectionList;  // client side: global connection list (linked list)
 
 //////////////////////////////
 //    SUPPORT FUNCTIONS     //
@@ -84,15 +84,14 @@ void msecsleep(int msec) {
   nanosleep(&time , &time);
 }
 
-
 //////////////////////////////
 //        FUNCTIONS         //
 //////////////////////////////
 
 int AS_init() {
   if(!AS_initialized) {
-    AS_ServerList = calloc(1,sizeof(AS_Server_t));
-    
+    AS_ServerList = calloc(1, sizeof(AS_Server_t));
+    AS_ConnectionList = calloc(1, sizeof(AS_Connections_t));
     AS_initialized = 1;
   }
 }
@@ -101,6 +100,18 @@ int AS_version() {
   return AS_VERSION;
 }
 
+int AS_sendAll(int sock, char *buf, int len)  { // replaces send(), sends in multiple steps if necessary
+  int total = 0;        // bytes sent
+  int bytesleft = len;  // bytes left
+  int n;                // bytes send per call
+  while(total < len) {
+    n = send(s, buf+total, bytesleft, 0);
+    if (n == -1) { break; } // error
+    total += n;
+    bytesleft -= n;
+  }  
+  return total; // return -1 on failure, 0 on success
+} 
 
 //////////////////////////////
 //          SERVER          //
@@ -211,8 +222,8 @@ void* AS_ServerThread(void *arg) {
   
   // init client list
   // AS_ClientList is root element, first real client will be 'AS_ClientList->next'
-  AS_Clients_t *AS_ClientList;
-  AS_ClientList = calloc(1,sizeof(AS_Clients_t));
+  AS_ConnectedClients_t *AS_ConnectedClientList;
+  AS_ConnectedClientList = calloc(1,sizeof(AS_ConnectedClients_t));
   
   server->running = 1;
   // server is now running, calling process can read this variable and return
@@ -257,7 +268,7 @@ void* AS_ServerThread(void *arg) {
             }
             
             // create new Client
-            AS_Clients_t* newClient = calloc(1, sizeof(AS_Clients_t));
+            AS_ConnectedClients_t* newClient = calloc(1, sizeof(AS_ConnectedClients_t));
             // copy sockaddr_storage to client 'object'
             newClient->sockaddr = sockaddr_remote;
             // save socket id to client 'object'
@@ -270,13 +281,13 @@ void* AS_ServerThread(void *arg) {
               
             // append client object to list
             // iterate to end of client list
-            AS_Clients_t* client;
-            client = AS_ClientList;  // let pointer point to root of list
+            AS_ConnectedClients_t* client;
+            client = AS_ConnectedClientList;  // let pointer point to root of list
             while(client->next != NULL)
               client = client->next;
             client->next = newClient;
             
-            // client is now in select() and also in AS_ClientList
+            // client is now in select() and also in AS_ConnectedClientlist
             printf("new client! (socket_id = %d)\n", sock_remote);
             
             
@@ -293,9 +304,9 @@ void* AS_ServerThread(void *arg) {
               close(sock_remote);
               // clear the client (socket) from the select () list
               FD_CLR(sock_remote, &fds_master);
-              // delete the client from AS_ClientList
-              AS_Clients_t *client, *lastClient;
-              client = AS_ClientList;
+              // delete the client from AS_ConnectedClientList
+              AS_ConnectedClients_t *client, *lastClient;
+              client = AS_ConnectedClientList;
               while(client->next != NULL) {
                 lastClient = client;
                 client = client->next;
@@ -416,12 +427,11 @@ int AS_ServerStop(int port)  {
 //          CLIENT          //
 //////////////////////////////
 
-
-
-
 int AS_ClientConnect(char* host, char* port)	{
+  if(!AS_initialized) AS_init();
 	int sockID, rv;
 	struct addrinfo *ai_hints, *ai_res, *ai_p;
+  AS_Connections_t *con;
 	
 	ai_hints = calloc(1, sizeof(struct addrinfo));
 	ai_hints->ai_family = AF_UNSPEC;
@@ -457,21 +467,52 @@ int AS_ClientConnect(char* host, char* port)	{
 	
 	// successfully connected to server
 	// add this client to internal client list
+  con = calloc(1, sizeof(AS_Connections_t));
+  con->conID = sockID;
+  con->next = NULL;
   
+  AS_Connections_t *connection;
+  connection = AS_ConnectionList; // root of con list
+  while(connection->next != NULL) // iterate through whole list until end
+    connection = connection->next;
+  connection->next = con; // add new connection to the end of the list
   
-	return sockID;
+	return sockID;    // return socket fd (conID)
 }
 
-int AS_ClientRead(int conID, char *buffer, int len) {
+int AS_ClientEvent(int conID) {
+
+}
+
+int AS_ClientReceivedBytes(int conID) {
   
+}
+
+int AS_ClientSendMessage(int conID, int recipient, char *message, int len)  {
+  AS_MessageHeader_t *header;
+  char *buffer;
+  size_t = size;
+
+  header = calloc(1, sizeof(AS_MessageHeader_t));
+  header->clientSource = 0;                 // server will fill this
+  header->clientDestination = -2;           // input clientID here, -2 = broadcast
+  header->payloadType = AS_TypeMessage;     // Type of Packet
+  header->payloadLength = strlen(buffer2);  // len of payload (here: message string)
+  
+  size = sizeof(AS_MessageHeader_t) + sizeof(char)*(len+1)
+  buffer = calloc(1, size);  // complete size of header+string
+  memcpy(buffer, header, sizeof(AS_MessageHeader_t)); // copy header to beginning of buffer
+  memcpy(buffer + sizeof(AS_MessageHeader_t), message, len);  // copy messsage to buffer behing header
+  
+  // buffer is not complete, send everything to server
+  AS_sendAll(conID, buffer, size);
+  // error check?
+}
+
+int AS_ClientRead(int conID, char *buffer, int len) { // called after a receive-event is triggered
+  // 
 }
 
 int AS_ClientDisconnect(int sockID)	{
   
 }
-
-int AS_ClientSendMessage(int sockID, char* message, size_t len) {
-  
-}
-
-
