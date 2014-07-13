@@ -105,7 +105,7 @@ int AS_sendAll(int sock, char *buf, int len)  { // replaces send(), sends in mul
   int bytesleft = len;  // bytes left
   int n;                // bytes send per call
   while(total < len) {
-    n = send(s, buf+total, bytesleft, 0);
+    n = send(sock, buf+total, bytesleft, 0);
     if (n == -1) { break; } // error
     total += n;
     bytesleft -= n;
@@ -488,18 +488,22 @@ int AS_ClientReceivedBytes(int conID) {
   
 }
 
-int AS_ClientSendMessage(int conID, int recipient, char *message, int len)  {
+int AS_ClientSendMessage(int conID, int recipient, char *message)  {
+  fprintf(stderr, "AS_ClientSendMessage: '%s'\n", message);
+  
   AS_MessageHeader_t *header;
   char *buffer;
-  size_t = size;
-
-  header = calloc(1, sizeof(AS_MessageHeader_t));
-  header->clientSource = 0;                 // server will fill this
-  header->clientDestination = -2;           // input clientID here, -2 = broadcast
-  header->payloadType = AS_TypeMessage;     // Type of Packet
-  header->payloadLength = strlen(buffer2);  // len of payload (here: message string)
+  size_t size;
+  int len;
   
-  size = sizeof(AS_MessageHeader_t) + sizeof(char)*(len+1)
+  len = strlen(message);
+  header = calloc(1, sizeof(AS_MessageHeader_t));
+  header->clientSource = 0;             // server will fill this
+  header->clientDestination = -2;       // input clientID here, -2 = broadcast
+  header->payloadType = AS_TypeMessage; // Type of Packet
+  header->payloadLength = len;          // len of payload (here: message string)
+  
+  size = sizeof(AS_MessageHeader_t) + sizeof(char)*(len+1);
   buffer = calloc(1, size);  // complete size of header+string
   memcpy(buffer, header, sizeof(AS_MessageHeader_t)); // copy header to beginning of buffer
   memcpy(buffer + sizeof(AS_MessageHeader_t), message, len);  // copy messsage to buffer behing header

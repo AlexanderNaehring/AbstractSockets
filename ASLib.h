@@ -44,5 +44,5 @@ int AS_ServerStop(int port);            // stop ASServer if running
 int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
 int AS_ClientDisconect(int cid);              // disconnects from an AS_Server previously connected with AS_ClientConnect
 
-int AS_ClientSendMessage(int conID, int recipient, char *message, int len);
+int AS_ClientSendMessage(int conID, int recipient, char *message);
 #endif

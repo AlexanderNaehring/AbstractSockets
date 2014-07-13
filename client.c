@@ -29,7 +29,8 @@ int main(void)  {
   int conID;
   int len, Event, bytes;
   char *buffer, *buffer2;
-  AS_MessageHeader_t *messageHeader;
+  char c;
+  size_t size;
   
   AS_version(); // unimportant
   printf("connecting to localhost... ");
@@ -81,34 +82,30 @@ int main(void)  {
     
     
     if(isSTDIN()) { // some input on stdin
-      char c;
-      c = getc(stdin);  // read a character from stdin
-      //printf("char = %d\n", (int)c);
-      if(c != 10) {
-        ungetc(c, stdin); // push input back to stdin
-        buffer = calloc(1024, sizeof(char));
-        scanf("%s", buffer);  // now read complete line
-        //printf("scanf = %s\n", buffer);
-        if(!strcmp(buffer, "q")) {  // q -> exit program
-          printf("client will close now!\n");
-          free(buffer);
-          break;
-        }
-        if(strstr(buffer, "send") == buffer) {
-          // strstr returns NULL pointer if string is NOT found
-          // if "send" is found, strstr returns pointer to occurance
-          // therefore -> check if send is found at location of buffer pointer
-          
-          // message should be located behind "send"
-          buffer2 = calloc(1024, sizeof(char));
-          sscanf(buffer, "send %s", buffer2);
-          // now, in buffer2 themessage is located
-          // recepient = -2 for broadcast
-          AS_ClientSendMessage(conID, -2, buffer2, strlen(buffer2));
-          free(buffer2);
-        }
+      //printf("stdin\n");
+      buffer = NULL;
+      //printf("getline: ");
+      getline(&buffer, &size, stdin);
+      //printf("buffer = %s\n", buffer);
+      if(strstr(buffer, "q") == buffer) { // q -> exit program
+        printf("client will close now!\n");
         free(buffer);
-      } // endif c != 10
+        break;
+      }
+      if(strstr(buffer, "send ") == buffer) {  // send message
+        // strstr returns NULL pointer if string is NOT found
+        // if "send" is found, strstr returns pointer to occurance
+        // therefore -> check if send is found at location of buffer pointer
+        
+        // message should be located behind "send"
+        buffer2 = buffer; // let buffer2 point to buffer
+        buffer2 = buffer2 + 5;  // shift pointer behind "send "
+        //printf("buffer2 = %s\n", buffer2);
+        // now, in buffer2 themessage is located
+        // recepient = -2 for broadcast
+        AS_ClientSendMessage(conID, -2, buffer2);
+      }
+      free(buffer);
     } // endif isSTDIN()
   } // while
   
