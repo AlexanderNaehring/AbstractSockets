@@ -18,6 +18,10 @@
 #define AS_IPv6 6
 #define AS_IPunspec 0
 
+#define AS_ClientEventReceiveMessage 1
+#define AS_ClientEventReceiveFile 2
+#define AS_ClientEventNewUser 2
+
 #define AS_PORT 20144
 #define AS_PORT_STR "20144"
 /*

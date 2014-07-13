@@ -45,9 +45,15 @@ typedef struct AS_Server_s {
   struct AS_Server_s *next;
 } AS_Server_t;
 
-typedef struct AS_Clients_s  {
+typedef struct AS_ConnectedClients_s  {
   int socket;
   struct sockaddr_storage sockaddr;
+  
+  struct AS_ConnectedClients_s *next;
+} AS_ConnectedClients_t;
+
+typedef struct AS_Client_s  {
+  int conID;
   
   struct AS_Clients_s *next;
 } AS_Clients_t;
@@ -177,7 +183,7 @@ void* AS_ServerThread(void *arg) {
     if(bind(sock_server, ai_p->ai_addr, ai_p->ai_addrlen) < 0) {
       close(sock_server);  // if fails: close socket again
       perror("error: bind:");
-      continue;       // and try next;
+      continue; // and try next;
     }
     // if this point is reached, bind worked!
     // socket is now operational!
@@ -411,6 +417,8 @@ int AS_ServerStop(int port)  {
 //////////////////////////////
 
 
+
+
 int AS_ClientConnect(char* host, char* port)	{
 	int sockID, rv;
 	struct addrinfo *ai_hints, *ai_res, *ai_p;
@@ -448,8 +456,14 @@ int AS_ClientConnect(char* host, char* port)	{
 	freeaddrinfo(ai_hints);
 	
 	// successfully connected to server
-	
+	// add this client to internal client list
+  
+  
 	return sockID;
+}
+
+int AS_ClientRead(int conID, char *buffer, int len) {
+  
 }
 
 int AS_ClientDisconnect(int sockID)	{
