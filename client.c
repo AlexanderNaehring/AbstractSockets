@@ -34,7 +34,7 @@ int main(void)  {
   
   AS_version(); // unimportant
   printf("connecting to localhost... ");
-  if(conID = AS_ClientConnect("localhost", AS_PORT_STR))  {
+  if(conID = AS_ClientConnect("localhost", "20144"))  {
     printf("connected\n");
   } else  {
     printf("error\n");

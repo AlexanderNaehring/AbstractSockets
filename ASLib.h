@@ -23,9 +23,6 @@
 #define AS_TypeFile 2
 #define AS_NewUser 3
 
-#define AS_PORT 20144
-#define AS_PORT_STR "20144"
-
 /*
   AF_INET
   AF_INET6

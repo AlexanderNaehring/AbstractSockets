@@ -154,7 +154,7 @@ int AS_ServerPrintRunning() {
     printf("  server on port %d: running = %d, stop = %d\n", server->port, server->running, server->stop);
   }
   if(!count)
-    printf("no AS_Server running in this process\n");
+    printf("  no AS_Server running in this process\n");
   return 0;
 }
 
