@@ -34,7 +34,7 @@ int main(void)  {
   
   AS_version(); // unimportant
   printf("connecting to localhost... ");
-  if(conID = AS_ClientConnect("localhost", AS_PORT_STR))  {
+  if(conID = AS_ClientConnect("localhost", "20144"))  {
     printf("connected\n");
   } else  {
     printf("error\n");
@@ -42,6 +42,8 @@ int main(void)  {
   }
   
   while(1) {
+    msecsleep(1); // sleep 1 millisecond in order to release CPU
+    
     // main program loop
     // check with AS_ClientEvent(conID) for incomming messages
     // in case of message -> handle it
