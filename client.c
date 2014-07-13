@@ -42,6 +42,8 @@ int main(void)  {
   }
   
   while(1) {
+    msecsleep(1); // sleep 1 millisecond in order to release CPU
+    
     // main program loop
     // check with AS_ClientEvent(conID) for incomming messages
     // in case of message -> handle it

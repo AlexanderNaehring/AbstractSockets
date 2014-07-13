@@ -100,7 +100,7 @@ int AS_version() {
   return AS_VERSION;
 }
 
-int AS_sendAll(int sock, char *buf, int len)  { // replaces send(), sends in multiple steps if necessary
+int AS_sendAll(int sock, void *buf, int len)  { // replaces send(), sends in multiple steps if necessary
   int total = 0;        // bytes sent
   int bytesleft = len;  // bytes left
   int n;                // bytes send per call
@@ -109,9 +109,22 @@ int AS_sendAll(int sock, char *buf, int len)  { // replaces send(), sends in mul
     if (n == -1) { break; } // error
     total += n;
     bytesleft -= n;
-  }  
+  }
   return total; // return -1 on failure, 0 on success
 } 
+
+int AS_receiveAll(int sock, void *buf, int len)  {
+  int total = 0;        // bytes received
+  int bytesleft = len;  // bytes left
+  int n;                // bytes received per call
+  while(total < len) {
+    n = recv(sock, buf+total, bytesleft, 0);
+    if (n == -1) { break; } // error
+    total += n;
+    bytesleft -= n;
+  }
+  return total; // return -1 on failure, 0 on success
+}
 
 //////////////////////////////
 //          SERVER          //
@@ -158,7 +171,9 @@ void* AS_ServerThread(void *arg) {
   struct timeval timeout;
   struct sockaddr_storage sockaddr_remote; // IP agnostiv instead of using sockaddr_in
   socklen_t sockaddr_size;
-  char buffer[AS_BUFFLEN+1];
+  AS_MessageHeader_t *header;
+  char *buffer;
+  char *payload;
   
   ai_hints = calloc(1, sizeof(struct addrinfo));
   
@@ -232,6 +247,8 @@ void* AS_ServerThread(void *arg) {
   FD_ZERO(&fds_master);
   FD_SET(sock_server,&fds_master); // add listening socket to list
   sockmax = sock_server;           // maximum socket number = only socket
+  
+  ///////////////////////////////////////////////////////////////////////////////////////
   // main server loop
   while(!server->stop) {
     // copy master list to "fds_read", since select() will manipulate the list
@@ -239,7 +256,7 @@ void* AS_ServerThread(void *arg) {
     // Use select() to wait for the next incomming message OR connection!
     // in order to react to the main thread, implement timeout
     timeout.tv_sec = 0;
-    timeout.tv_usec = 10000;  // 10 * 1000 = 10 ms
+    timeout.tv_usec = 10000;  // 10 * 1000 microsec = 10 millisec
     rv = select(sockmax+1, &fds_read, NULL, NULL, &timeout);
     if(rv == 0) // timeout!
       // time out used in order to react to shutdown event
@@ -273,38 +290,36 @@ void* AS_ServerThread(void *arg) {
             newClient->sockaddr = sockaddr_remote;
             // save socket id to client 'object'
             newClient->socket = sock_remote;
-            
+            newClient->next = NULL;
+                        
             // now add this new socket to the select()-list in order to read it
             FD_SET(sock_remote, &fds_master);
             if(sock_remote > sockmax)
               sockmax = sock_remote;
               
+            
             // append client object to list
             // iterate to end of client list
             AS_ConnectedClients_t* client;
             client = AS_ConnectedClientList;  // let pointer point to root of list
             while(client->next != NULL)
-              client = client->next;
-            client->next = newClient;
+              client = client->next;  // iterate to end of list
+            client->next = newClient; // last entry: add pointer to new Client!
             
             // client is now in select() and also in AS_ConnectedClientlist
             printf("new client! (socket_id = %d)\n", sock_remote);
             
-            
-          } else  { // select()
+          } else  {
             // some client sends data
             sock_remote = i;
-            memset(&buffer, 0, sizeof(buffer));
-            rv = recv(sock_remote, buffer, AS_BUFFLEN, 0);
-            
+            header = calloc(1, sizeof(AS_MessageHeader_t));
+            rv = recv(sock_remote, header, sizeof(AS_MessageHeader_t), 0);
             if(rv == -1)  { // error
               perror("receive");
             } else if(rv == 0) {  // client closes connection
               printf("connection closed by remote client (socket_id = %d)\n", sock_remote);
-              close(sock_remote);
-              // clear the client (socket) from the select () list
-              FD_CLR(sock_remote, &fds_master);
-              // delete the client from AS_ConnectedClientList
+              close(sock_remote); // clear the client (socket) from the select () list
+              FD_CLR(sock_remote, &fds_master); // delete the client from AS_ConnectedClientList
               AS_ConnectedClients_t *client, *lastClient;
               client = AS_ConnectedClientList;
               while(client->next != NULL) {
@@ -318,13 +333,50 @@ void* AS_ServerThread(void *arg) {
                 }
               }
             } else  { // clients sends actual data
-            
-            
-            
-            
+              printf("receive data from client %d\n", sock_remote);
+              // analyze header
+              if(rv == sizeof(AS_MessageHeader_t))  {
+                // received header!
+                printf("received header: destination: %d, type: %d, length: %d\n", header->clientDestination, header->payloadType, header->payloadLength);
+                // receive the rest of the packet (payload length)
+                payload = calloc(1, header->payloadLength + sizeof(char)); // add an additional '\0' to the end of the payload
+                AS_receiveAll(sock_remote, payload, header->payloadLength);  // receive the exact amount of data
+                printf("received payload: %s\n", payload);
+                
+                if(header->clientDestination == -1) { // -1 is server -> everything else: forward!
+                  printf("Destination: Server\n");
+                } else  {
+                  printf("Destination not server -> handle message and forward\n");
+                  // forward message to user
+                  // first: generate new message out of header + payload
+                  buffer = calloc(1, sizeof(AS_MessageHeader_t) + header->payloadLength);
+                  memcpy(buffer, header, sizeof(header));
+                  memcpy(buffer + sizeof(header), payload, sizeof(payload));
+                  // packet ready
+                  if(header->clientDestination == -2) { // broadcasting -> send to all clients
+                    printf("broadcasting message\n");
+                    AS_ConnectedClients_t *client;
+                    client = AS_ConnectedClientList;
+                    while(client->next != NULL) {
+                      client = client->next;
+                      
+                      printf("Sending to client %d\n", client->socket);
+                      AS_sendAll(client->socket, buffer, sizeof(buffer));
+                    }
+                  } else  { // not broadcasting -> send only to destination
+                    printf("Direct forwarding of message\n");
+                    AS_sendAll(header->clientDestination, buffer, sizeof(buffer));
+                  }
+                  // done forwarding the message
+                }
+                free(payload);
+              } else  {
+                // received to less in order for a correct header
+                // do not try to handle error, just leave
+                fprintf(stderr, "error: received data to small for header - discarding message\n");
+              }
             }
-            
-            //_______
+            free(header);
           }
         } // FD_ISSET
       }
@@ -481,14 +533,17 @@ int AS_ClientConnect(char* host, char* port)	{
 }
 
 int AS_ClientEvent(int conID) {
+  if(!AS_initialized) AS_init();
 
 }
 
 int AS_ClientReceivedBytes(int conID) {
+  if(!AS_initialized) AS_init();
   
 }
 
 int AS_ClientSendMessage(int conID, int recipient, char *message)  {
+  if(!AS_initialized) AS_init();
   fprintf(stderr, "AS_ClientSendMessage: '%s'\n", message);
   
   AS_MessageHeader_t *header;
@@ -496,14 +551,14 @@ int AS_ClientSendMessage(int conID, int recipient, char *message)  {
   size_t size;
   int len;
   
-  len = strlen(message);
+  len = sizeof(char)*(strlen(message)+1); // +1 for '\0'
   header = calloc(1, sizeof(AS_MessageHeader_t));
   header->clientSource = 0;             // server will fill this
   header->clientDestination = -2;       // input clientID here, -2 = broadcast
   header->payloadType = AS_TypeMessage; // Type of Packet
-  header->payloadLength = len;          // len of payload (here: message string)
+  header->payloadLength = len;          // len of payload in byte
   
-  size = sizeof(AS_MessageHeader_t) + sizeof(char)*(len+1);
+  size = sizeof(AS_MessageHeader_t) + len;  // len does no need sizeof(char) (already included)
   buffer = calloc(1, size);  // complete size of header+string
   memcpy(buffer, header, sizeof(AS_MessageHeader_t)); // copy header to beginning of buffer
   memcpy(buffer + sizeof(AS_MessageHeader_t), message, len);  // copy messsage to buffer behing header
@@ -514,9 +569,11 @@ int AS_ClientSendMessage(int conID, int recipient, char *message)  {
 }
 
 int AS_ClientRead(int conID, char *buffer, int len) { // called after a receive-event is triggered
+  if(!AS_initialized) AS_init();
   // 
 }
 
 int AS_ClientDisconnect(int sockID)	{
+  if(!AS_initialized) AS_init();
   
 }
