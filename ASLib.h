@@ -6,6 +6,7 @@
  *      created: May 27, 2014       *
  *        Alexander Nähring         *
  ************************************/
+ 
 #ifndef ASLIB_H_
 #define ASLIB_H_
 
@@ -18,8 +19,13 @@
 #define AS_IPv6 6
 #define AS_IPunspec 0
 
+#define AS_TypeMessage 1
+#define AS_TypeFile 2
+#define AS_NewUser 3
+
 #define AS_PORT 20144
 #define AS_PORT_STR "20144"
+
 /*
   AF_INET
   AF_INET6
@@ -35,8 +41,8 @@ int AS_ServerStart(int port, int IPv);  // start ASServer at specific port
                                         // IPv can be AS_IPv4, AS_IPv6 or AS_IPunspec
 int AS_ServerStop(int port);            // stop ASServer if running
 
-
 int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
 int AS_ClientDisconect(int cid);              // disconnects from an AS_Server previously connected with AS_ClientConnect
 
+int AS_ClientSendMessage(int conID, int recipient, char *message);
 #endif
