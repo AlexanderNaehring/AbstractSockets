@@ -26,11 +26,11 @@ int isSTDIN() { // 0: timeout (no input), >0: stdin has input, -1: error
 }
 
 int main(void)  {
-  int conID;
-  int len, Event, bytes;
-  char *buffer, *buffer2;
+  int conID, len;
+  char *buffer;
   char c;
   size_t size;
+  AS_ClientEvent_t *event;
   
   AS_version(); // unimportant
   printf("connecting to localhost... ");
@@ -50,38 +50,19 @@ int main(void)  {
     // check for user input 
     // e.g. sending messages, asking for connected users, etc
     
-    Event = AS_ClientEvent(conID); // query client events
+    event = AS_ClientEvent(conID); // query client events
     // Events have to be handled before calling this function again
     // Everytime this function is called, the last event will be discarded
     
-    switch(Event)  {
-      case -1:  // error
-        fprintf(stderr, "AS_ClientEvent error");
-        break;
-        
-      case AS_TypeMessage:
-        bytes = AS_ClientReceivedBytes(conID);
-        if(bytes <= 0) { // variable contains number of received bytes
-          fprintf(stderr, "error: there is something wrong with the number of bytes received\n");
+    if(event != NULL)
+      switch(event->header->payloadType)  {
+        case AS_TypeMessage:
+          printf("Received message from client %d: %s", event->header->clientSource, (char *)(event->payload));
           break;
-        }
-        if(!(buffer = calloc(1, bytes))) { // error allocating buffer
-          fprintf(stderr, "error: failed to allocate buffer for received message\n");
-          break;
-        }
-        if(len = AS_ClientRead(conID, buffer, sizeof(buffer)))  {
-          // reading buffer
-          
-        } else  {
-          fprintf(stderr, "error: AS_ClientRead error\n");
-          break;
-        }
-        break;
-        
-      default: // no event or not implemented
-        break;
-    }
-    
+        case AS_TypeShutdown:
+          printf("server shutdown - close socket now\n");
+          return;
+      }
     
     if(isSTDIN()) { // some input on stdin
       //printf("stdin\n");
@@ -100,12 +81,10 @@ int main(void)  {
         // therefore -> check if send is found at location of buffer pointer
         
         // message should be located behind "send"
-        buffer2 = buffer; // let buffer2 point to buffer
-        buffer2 = buffer2 + 5;  // shift pointer behind "send "
-        //printf("buffer2 = %s\n", buffer2);
+        // +5 for shifting pointer behind "send "
         // now, in buffer2 themessage is located
         // recepient = -2 for broadcast
-        AS_ClientSendMessage(conID, -2, buffer2);
+        AS_ClientSendMessage(conID, -2, buffer + 5);
       }
       free(buffer);
     } // endif isSTDIN()
