@@ -1,9 +1,6 @@
 AbstractSockets
 ===============
 
-Abstraction Layer for Using Sockets in C-Programs
-Plus Implementation of a Scalable Multi-Party Chat Program and File Transfer
-
 My proposal is to program a library (.h / .c file) which will present the programmer with abstract functions for communication over sockets. The library will handle the connections, clients and server internally and provide the programmer with an easy-to-use interface for common types of communication tasks like sending messages, transferring files, etc.
 The library will handle the following things internally:
 * Starting and supervising running server
@@ -37,3 +34,5 @@ int AS_ClientDisconect(int cid);              // disconnects from an AS_Server p
 AS_ClientEvent_t* AS_ClientEvent(int conID);
 int AS_ClientSendMessage(int conID, int recipient, char *message);
 ```
+
+In addition, a simple server/client pair using ASLib.o will demonstrate __*Abstract Sockets*__ in action.
