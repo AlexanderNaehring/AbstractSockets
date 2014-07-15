@@ -554,8 +554,28 @@ int AS_ClientConnect(char* host, char* port)	{
 	return sockID;    // return socket fd (conID)
 }
 
+int AS_ClientCheckConID(int conID)  { // test if conID is in list of current conections monitored by AS
+  if(!AS_initialized) AS_init();
+  
+  AS_Connections_t *connection;
+  
+  connection = AS_ConnectionList; // root of con list
+  while(connection->next != NULL) { // iterate through whole list until end
+    connection = connection->next;
+    if(connection->conID == conID)  {
+      return true; // found this conID in the list -> return true (1)
+    }
+  }
+  return false;
+}
+
 AS_ClientEvent_t* AS_ClientEvent(int conID) { // check for incomming stuff, receive data to buffer and return header
   if(!AS_initialized) AS_init();
+  
+  if(!AS_ClientCheckConID(conID)) {
+    fprintf(stderr, "AS_ClientEvent error: conID not valid\n");
+    return NULL;  // conID not valid (server socket fd)
+  }
   
   struct timeval tv;
   fd_set fds;
@@ -619,7 +639,11 @@ AS_ClientEvent_t* AS_ClientEvent(int conID) { // check for incomming stuff, rece
 
 int AS_ClientSendMessage(int conID, int recipient, char *message)  {
   if(!AS_initialized) AS_init();
-  //fprintf(stderr, "AS_ClientSendMessage: '%s'\n", message);
+  
+  if(!AS_ClientCheckConID(conID)) {
+    fprintf(stderr, "AS_ClientSendMessage error: conID not valid\n");
+    return 0;  // conID not valid (server socket fd)
+  }
   
   AS_MessageHeader_t *header;
   char *buffer;
@@ -639,12 +663,16 @@ int AS_ClientSendMessage(int conID, int recipient, char *message)  {
   memcpy(buffer + sizeof(AS_MessageHeader_t), message, len);  // copy messsage to buffer behing header
   
   // buffer is not complete, send everything to server
-  AS_sendAll(conID, buffer, size);
+  return AS_sendAll(conID, buffer, size);
   // error check?
 }
 
 int AS_ClientDisconnect(int conID)	{
   if(!AS_initialized) AS_init();
+  
+  if(!AS_ClientCheckConID(conID)) {
+    return 0;  // conID not valid (server socket fd)
+  }
   
   AS_Connections_t *connection, *last;
   

@@ -54,7 +54,7 @@ int main(void)  {
     // Events have to be handled before calling this function again
     // Everytime this function is called, the last event will be discarded
     
-    if(event != NULL)
+    if(event != NULL) // AS_ClientEvent() returns NULL in case of error or no event!
       switch(event->header->payloadType)  {
         case AS_TypeMessage:
           printf("Received message from client %d: %s", event->header->clientSource, (char *)(event->payload));
