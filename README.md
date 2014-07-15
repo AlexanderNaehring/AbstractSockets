@@ -26,13 +26,10 @@ int AS_ServerStop(int port);            // stop ASServer if running
 __Client functionality:__
 ```c
 int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
-int AS_ClientDisconect(int cid);              // disconnects from an AS_Server previously connected with AS_ClientConnect
-AS_ClientEvent_t* AS_ClientEvent(int conID);
+int AS_ClientDisconect(int conID);            // disconnects from an AS_Server previously connected with AS_ClientConnect
+AS_ClientEvent_t* AS_ClientEvent(int conID);  // listen to socket and return NULL or an even structure
 int AS_ClientSendMessage(int conID, int recipient, char *message);
-int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
-int AS_ClientDisconect(int cid);              // disconnects from an AS_Server previously connected with AS_ClientConnect
-AS_ClientEvent_t* AS_ClientEvent(int conID);
-int AS_ClientSendMessage(int conID, int recipient, char *message);
+int AS_ClientListClients(int conID);          // ask server for a list of all connected clients
 ```
 
 In addition, a simple server/client pair using ASLib.o will demonstrate __*Abstract Sockets*__ in action.

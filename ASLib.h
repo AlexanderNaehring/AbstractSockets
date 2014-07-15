@@ -21,8 +21,15 @@
 #define AS_NAMELEN 128
 
 #define AS_TypeShutdown 1
-#define AS_TypeMessage 2
-#define AS_TypeFile 3
+#define AS_TypeClientID 2
+#define AS_TypeClientConnect 3
+#define AS_TypeClientDisconnect 4
+#define AS_TypeAskForClients 5
+#define AS_TypeListOfClients 6
+#define AS_TypeMessage 50
+#define AS_TypeFileRequest 51
+#define AS_TypeFileAnswer 52
+#define AS_TypeFileData 53
 
 /*
   AF_INET
@@ -37,6 +44,7 @@
 typedef enum { false, true } bool;
 
 typedef struct AS_MessageHeader_s { // header of each packet! afterwards -> payload
+  int as_identifier;          // has to be set to 144 all the time
   int clientSource;           // -1: server
   int clientDestination;      // -1: server // -2: broadcast to all clients
   unsigned int payloadType;   // AS_PAYLOAD_xxx
@@ -62,8 +70,9 @@ int AS_ServerStart(int port, int IPv);  // start ASServer at specific port
 int AS_ServerStop(int port);            // stop ASServer if running
 
 int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
-int AS_ClientDisconect(int conID);              // disconnects from an AS_Server previously connected with AS_ClientConnect
-AS_ClientEvent_t* AS_ClientEvent(int conID);
+int AS_ClientDisconect(int conID);            // disconnects from an AS_Server previously connected with AS_ClientConnect
+AS_ClientEvent_t* AS_ClientEvent(int conID);  // listen to socket and return NULL or an even structure
 int AS_ClientSendMessage(int conID, int recipient, char *message);
+int AS_ClientListClients(int conID);          // ask server for a list of all connected clients
 
 #endif

@@ -33,13 +33,9 @@ int main(void)  {
   AS_ClientEvent_t *event;
   
   AS_version(); // unimportant
-  printf("connecting to localhost... ");
-  if(conID = AS_ClientConnect("localhost", "20144"))  {
-    printf("connected\n");
-  } else  {
-    printf("error\n");
+  conID = AS_ClientConnect("localhost", "20144");
+  if(!conID)
     return -1;
-  }
   
   while(1) {
     msecsleep(1); // sleep 1 millisecond in order to release CPU
@@ -62,6 +58,12 @@ int main(void)  {
         case AS_TypeShutdown:
           printf("server shutdown - close socket now\n");
           return;
+        case AS_TypeClientConnect:
+          printf("new client %d connected to server\n", event->header->clientDestination);
+          break;
+        case AS_TypeClientDisconnect:
+          printf("client %d disconnected from server\n", event->header->clientDestination);
+          break;
       }
     
     if(isSTDIN()) { // some input on stdin
@@ -85,6 +87,9 @@ int main(void)  {
         // now, in buffer2 themessage is located
         // recepient = -2 for broadcast
         AS_ClientSendMessage(conID, -2, buffer + 5);
+      }
+      if(strstr(buffer, "clients") == buffer)  {
+        AS_ClientListClients(conID);
       }
       free(buffer);
     } // endif isSTDIN()
