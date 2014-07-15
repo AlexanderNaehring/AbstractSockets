@@ -6,7 +6,7 @@
  *      created: May 27, 2014       *
  *        Alexander Nähring         *
  ************************************/
- 
+
 #ifndef ASLIB_H_
 #define ASLIB_H_
 
@@ -62,7 +62,7 @@ int AS_ServerStart(int port, int IPv);  // start ASServer at specific port
 int AS_ServerStop(int port);            // stop ASServer if running
 
 int AS_ClientConnect(char* host, char *port); // establish a connection to an AS_Server at [host]:port, returns connection id: cid
-int AS_ClientDisconect(int cid);              // disconnects from an AS_Server previously connected with AS_ClientConnect
+int AS_ClientDisconect(int conID);              // disconnects from an AS_Server previously connected with AS_ClientConnect
 AS_ClientEvent_t* AS_ClientEvent(int conID);
 int AS_ClientSendMessage(int conID, int recipient, char *message);
 
